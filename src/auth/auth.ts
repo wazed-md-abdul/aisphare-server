@@ -9,13 +9,24 @@ const client = new MongoClient(
 );
 const db = client.db();
 
+let baseURL = process.env.BETTER_AUTH_URL || "http://localhost:4000";
+if (!baseURL.endsWith("/api/auth")) {
+  baseURL = `${baseURL.replace(/\/$/, "")}/api/auth`;
+}
+
 export const auth = betterAuth({
   database: mongodbAdapter(db, {
     client,
   }),
-  baseURL: process.env.BETTER_AUTH_URL || "http://localhost:4000",
+  baseURL: baseURL,
   secret: process.env.BETTER_AUTH_SECRET,
   trustedOrigins: [process.env.CLIENT_URL || "http://localhost:3000"],
+  advanced: {
+    useSecureCookies: process.env.NODE_ENV === "production",
+  },
+  cookie: process.env.NODE_ENV === "production" ? {
+    sameSite: "none",
+  } : undefined,
   emailAndPassword: {
     enabled: true,
   },

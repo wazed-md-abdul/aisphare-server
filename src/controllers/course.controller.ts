@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import type { Response } from "express";
 import { Course } from "../models/course.model.js";
 import type { AuthedRequest } from "../middlewares/auth.middleware.js";
@@ -8,7 +9,13 @@ export async function listCourses(_req: AuthedRequest, res: Response) {
 }
 
 export async function getCourse(req: AuthedRequest, res: Response) {
-  const course = await Course.findById(req.params.id);
+  let course = null;
+  if (mongoose.isValidObjectId(req.params.id)) {
+    course = await Course.findById(req.params.id);
+  }
+  if (!course) {
+    course = await Course.findOne({ courseId: req.params.id });
+  }
   if (!course) {
     res.status(404).json({ error: "Not found" });
     return;

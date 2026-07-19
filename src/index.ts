@@ -7,6 +7,8 @@ import { auth } from "./auth/auth.js";
 import aiRoutes from "./routes/ai.routes.js";
 import courseRoutes from "./routes/course.routes.js";
 
+import { seedDatabase } from "./models/seed.js";
+
 const app = express();
 const PORT = process.env.PORT || 4000;
 
@@ -21,7 +23,8 @@ app.use(
 // raw request body (spec §6.4).
 app.all("/api/auth/*", toNodeHandler(auth));
 
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
@@ -35,8 +38,10 @@ async function start() {
     if (process.env.MONGODB_URI) {
       await mongoose.connect(process.env.MONGODB_URI, {
         serverSelectionTimeoutMS: 5000,
+        dbName: "edusphere",
       });
-      console.log("MongoDB connected");
+      console.log("MongoDB connected to database: edusphere");
+      await seedDatabase();
     } else {
       console.warn("MONGODB_URI not set — DB features disabled");
     }
@@ -46,7 +51,16 @@ async function start() {
       (err as Error).message
     );
   }
-  app.listen(PORT, () => console.log(`Server listening on :${PORT}`));
 }
 
-start();
+// Skip app.listen in Vercel serverless environment and export the express instance
+if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
+  start().then(() => {
+    app.listen(PORT, () => console.log(`Server listening on :${PORT}`));
+  });
+} else {
+  // Trigger connection pool in Vercel context on boot
+  start().catch((err) => console.error("Database connection failed on Vercel boot:", err));
+}
+
+export default app;

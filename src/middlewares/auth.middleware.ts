@@ -12,13 +12,21 @@ export async function requireAuth(
   res: Response,
   next: NextFunction
 ) {
-  const session = await auth.api.getSession({
-    headers: fromNodeHeaders(req.headers),
-  });
-  if (!session) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
+  try {
+    const session = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
+    });
+    if (!session) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    req.userId = session.user.id;
+    next();
+  } catch (err) {
+    console.error("Error in requireAuth middleware:", err);
+    res.status(500).json({
+      error: "Internal Server Error",
+      details: err instanceof Error ? err.message : String(err),
+    });
   }
-  req.userId = session.user.id;
-  next();
 }

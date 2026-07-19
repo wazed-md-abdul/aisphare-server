@@ -1,5 +1,5 @@
 import type { Response } from "express";
-import { claudeService } from "../services/ai/claude.service.js";
+import { openRouterService } from "../services/ai/openrouter.service.js";
 import type { AuthedRequest } from "../middlewares/auth.middleware.js";
 import { GeneratedContent } from "../models/generated-content.model.js";
 import { Conversation } from "../models/conversation.model.js";
@@ -8,7 +8,7 @@ import { DocumentModel } from "../models/document.model.js";
 import { Recommendation } from "../models/recommendation.model.js";
 import { extractText } from "../services/extract.service.js";
 
-// Thin controllers — all AI work flows through claudeService (spec §6.2).
+// Thin controllers — all AI work flows through openRouterService (spec §6.2).
 
 function openSSE(res: Response) {
   res.setHeader("Content-Type", "text/event-stream");
@@ -23,74 +23,96 @@ function sendToken(res: Response, token: string) {
 
 export async function generateContent(req: AuthedRequest, res: Response) {
   const { subject, topic, difficulty, outputType, length } = req.body;
-  openSSE(res);
-  const full = await claudeService.generateContent(
-    { subject, topic, difficulty, outputType, length },
-    (t) => sendToken(res, t)
-  );
-  await GeneratedContent.create({
-    owner: req.userId,
-    subject,
-    topic,
-    outputType,
-    content: full,
-  });
-  res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-  res.end();
+  try {
+    openSSE(res);
+    const full = await openRouterService.generateContent(
+      { subject, topic, difficulty, outputType, length },
+      (t) => sendToken(res, t)
+    );
+    await GeneratedContent.create({
+      owner: req.userId,
+      subject,
+      topic,
+      outputType,
+      content: full,
+    });
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+  } catch (err) {
+    console.error("Gemini Content Generation Error:", err);
+    res.write(`data: ${JSON.stringify({ error: err instanceof Error ? err.message : String(err) })}\n\n`);
+    res.end();
+  }
 }
 
 export async function chat(req: AuthedRequest, res: Response) {
   const { context, messages, conversationId } = req.body;
-  openSSE(res);
-  const full = await claudeService.chat(
-    { studentName: context?.studentName ?? "student", college: "EduSphere AI", ...context },
-    messages,
-    (t) => sendToken(res, t)
-  );
+  try {
+    openSSE(res);
+    const full = await openRouterService.chat(
+      { studentName: context?.studentName ?? "student", college: "EduSphere AI", ...context },
+      messages,
+      (t) => sendToken(res, t)
+    );
 
-  const turn = [
-    ...messages,
-    { role: "assistant", content: full, time: new Date() },
-  ];
-  if (conversationId) {
-    await Conversation.findByIdAndUpdate(conversationId, {
-      $set: { messages: turn },
-    });
-  } else {
-    await Conversation.create({
-      student: req.userId,
-      course: context?.course,
-      messages: turn,
-    });
+    const turn = [
+      ...messages,
+      { role: "assistant", content: full, time: new Date() },
+    ];
+    if (conversationId) {
+      await Conversation.findByIdAndUpdate(conversationId, {
+        $set: { messages: turn },
+      });
+    } else {
+      await Conversation.create({
+        student: req.userId,
+        course: context?.course,
+        messages: turn,
+      });
+    }
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+  } catch (err) {
+    console.error("Gemini Chat Error:", err);
+    res.write(`data: ${JSON.stringify({ error: err instanceof Error ? err.message : String(err) })}\n\n`);
+    res.end();
   }
-  res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-  res.end();
 }
 
 export async function analyze(req: AuthedRequest, res: Response) {
   const { rows, filename } = req.body;
-  const result = await claudeService.analyzeCSV(JSON.stringify(rows));
-  await AnalysisReport.create({ owner: req.userId, filename, result });
-  res.json(result);
+  try {
+    const result = await openRouterService.analyzeCSV(JSON.stringify(rows));
+    await AnalysisReport.create({ owner: req.userId, filename, result });
+    res.json(result);
+  } catch (err) {
+    console.error("Gemini CSV Analysis Error:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
 }
 
 export async function summarizeDocument(req: AuthedRequest, res: Response) {
   const { base64, filename } = req.body;
-  const text = await extractText(base64, filename);
-  const [summary, classification] = await Promise.all([
-    claudeService.summarizePDF(text),
-    claudeService.classifyDocument(text),
-  ]);
-  const doc = await DocumentModel.create({
-    owner: req.userId,
-    filename,
-    text,
-    summary: summary.summary,
-    keyPoints: summary.keyPoints,
-    category: classification.category,
-    tags: classification.tags,
-  });
-  res.json({ ...summary, ...classification, _id: doc._id });
+  try {
+    const text = await extractText(base64, filename);
+    const [summary, classification] = await Promise.all([
+      openRouterService.summarizePDF(text),
+      openRouterService.classifyDocument(text),
+    ]);
+    const doc = await DocumentModel.create({
+      owner: req.userId,
+      filename,
+      text,
+      summary: summary.summary,
+      keyPoints: summary.keyPoints,
+      category: classification.category,
+      tags: classification.tags,
+    });
+    res.json({ ...summary, ...classification, _id: doc._id });
+  } catch (err) {
+    console.error("Gemini Document Summarization Error:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
 }
 
 // Tags are a suggestion, not a lock (spec §5.5) — user can edit them.
@@ -110,19 +132,29 @@ export async function updateDocumentTags(req: AuthedRequest, res: Response) {
 
 export async function analyzeImage(req: AuthedRequest, res: Response) {
   const { base64, mediaType } = req.body;
-  const result = await claudeService.analyzeImage(base64, mediaType);
-  res.json({ result });
+  try {
+    const result = await openRouterService.analyzeImage(base64, mediaType);
+    res.json({ result });
+  } catch (err) {
+    console.error("Gemini Image Analysis Error:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
 }
 
 export async function recommend(req: AuthedRequest, res: Response) {
   const { profile } = req.body;
-  const result = await claudeService.recommendCourse(profile);
-  const saved = await Recommendation.create({
-    student: req.userId,
-    profile,
-    result,
-  });
-  res.json({ result, _id: saved._id });
+  try {
+    const result = await openRouterService.recommendCourse(profile);
+    const saved = await Recommendation.create({
+      student: req.userId,
+      profile,
+      result,
+    });
+    res.json({ result, _id: saved._id });
+  } catch (err) {
+    console.error("Gemini Recommend Error:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
 }
 
 export async function recommendHistory(req: AuthedRequest, res: Response) {

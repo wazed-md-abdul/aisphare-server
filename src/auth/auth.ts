@@ -10,7 +10,9 @@ const client = new MongoClient(
 const db = client.db();
 
 export const auth = betterAuth({
-  database: mongodbAdapter(db),
+  database: mongodbAdapter(db, {
+    client,
+  }),
   baseURL: process.env.BETTER_AUTH_URL || "http://localhost:4000",
   secret: process.env.BETTER_AUTH_SECRET,
   trustedOrigins: [process.env.CLIENT_URL || "http://localhost:3000"],

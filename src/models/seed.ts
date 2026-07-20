@@ -41,7 +41,7 @@ const SEED_COURSES = [
     level: "PG",
     durationWeeks: 16,
     instructor: "Dr. Elena Kostic",
-    imageUrl: "https://images.unsplash.com/photo-1530026405186-ed1ea0ac7a63?q=80&w=600&auto=format&fit=crop",
+    imageUrl: "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?q=80&w=600&auto=format&fit=crop",
   },
   {
     courseId: "CS-501",
@@ -113,6 +113,104 @@ const SEED_COURSES = [
     instructor: "Prof. Julian Vark",
     imageUrl: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?q=80&w=600&auto=format&fit=crop",
   },
+  {
+    courseId: "MATH-315",
+    title: "Applied Mathematics for Machine Intelligence",
+    shortDescription: "Linear algebra, probability, and optimization behind modern AI systems.",
+    fullDescription: "The mathematical engine room of machine intelligence: matrix calculus, probabilistic inference, convex and non-convex optimization, and the numerical methods that make trillion-parameter training runs converge.",
+    department: "Mathematics",
+    credits: 4,
+    term: "Fall 2024",
+    maxCapacity: 45,
+    level: "UG",
+    durationWeeks: 12,
+    instructor: "Dr. Naomi Feld",
+    imageUrl: "https://images.unsplash.com/photo-1509228468518-180dd4864904?q=80&w=600&auto=format&fit=crop",
+  },
+  {
+    courseId: "PHY-410",
+    title: "Astrophysical Data Systems",
+    shortDescription: "Telescope-scale data pipelines and cosmological simulation.",
+    fullDescription: "Processing petabyte-scale observatory data: signal extraction, transient detection, and running cosmological simulations on institutional compute clusters.",
+    department: "Physics",
+    credits: 4,
+    term: "Spring 2025",
+    maxCapacity: 30,
+    level: "PG",
+    durationWeeks: 14,
+    instructor: "Dr. Ilya Brandt",
+    imageUrl: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=600&auto=format&fit=crop",
+  },
+  {
+    courseId: "SEC-330",
+    title: "Adversarial Machine Learning and Security",
+    shortDescription: "Attacking and defending AI models in production environments.",
+    fullDescription: "Prompt injection, data poisoning, model extraction, and the defensive hardening of institutional AI deployments. Includes red-team lab exercises against sandboxed campus models.",
+    department: "Computer Science",
+    credits: 3,
+    term: "Spring 2025",
+    maxCapacity: 28,
+    level: "PG",
+    durationWeeks: 10,
+    instructor: "Dr. Sarah Chen",
+    imageUrl: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=600&auto=format&fit=crop",
+  },
+  {
+    courseId: "ROB-240",
+    title: "Autonomous Robotics Laboratory",
+    shortDescription: "Perception, planning, and control for campus robotics fleets.",
+    fullDescription: "Hands-on robotics: SLAM, motion planning, sensor fusion, and deploying autonomous agents on physical hardware in the institutional robotics lab.",
+    department: "Engineering",
+    credits: 4,
+    term: "Fall 2024",
+    maxCapacity: 22,
+    level: "UG",
+    durationWeeks: 12,
+    instructor: "Prof. Deshi Okafor",
+    imageUrl: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=600&auto=format&fit=crop",
+  },
+  {
+    courseId: "DATA-260",
+    title: "Data Storytelling and Visualization",
+    shortDescription: "Turning institutional datasets into decisions and narratives.",
+    fullDescription: "Visual grammar, dashboard design, and narrative analytics: how to move an institution from raw records to defensible decisions using modern visualization toolchains.",
+    department: "Data Science",
+    credits: 3,
+    term: "Spring 2025",
+    maxCapacity: 55,
+    level: "UG",
+    durationWeeks: 8,
+    instructor: "Prof. Mara Lindqvist",
+    imageUrl: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?q=80&w=600&auto=format&fit=crop",
+  },
+  {
+    courseId: "NLP-520",
+    title: "Natural Language Processing at Scale",
+    shortDescription: "Transformer internals, retrieval systems, and production LLM serving.",
+    fullDescription: "From attention mechanisms to deployed retrieval-augmented systems: tokenization, fine-tuning, evaluation, and serving language models under real institutional load.",
+    department: "Computer Science",
+    credits: 4,
+    term: "Spring 2025",
+    maxCapacity: 26,
+    level: "PG",
+    durationWeeks: 14,
+    instructor: "Dr. Aris Thorne",
+    imageUrl: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=600&auto=format&fit=crop",
+  },
+  {
+    courseId: "COG-310",
+    title: "Cognitive Science of Learning",
+    shortDescription: "How humans learn — and how AI tutors should adapt to it.",
+    fullDescription: "Memory, attention, and skill acquisition research applied to adaptive learning systems: spaced repetition engines, mastery models, and the design of AI-driven pedagogy.",
+    department: "Psychology",
+    credits: 3,
+    term: "Fall 2024",
+    maxCapacity: 48,
+    level: "UG",
+    durationWeeks: 10,
+    instructor: "Dr. Naomi Feld",
+    imageUrl: "https://images.unsplash.com/photo-1518186285589-2f7649de83e0?q=80&w=600&auto=format&fit=crop",
+  },
 ];
 
 export async function seedDatabase() {
@@ -123,14 +221,18 @@ export async function seedDatabase() {
       await Course.insertMany(SEED_COURSES);
       console.log("Database seeded successfully with courses.");
     } else {
-      console.log(`Database already has ${count} courses. Syncing course images...`);
+      console.log(`Database already has ${count} courses. Syncing seed catalog...`);
+      // Upsert each seed course: inserts newly added catalog entries and
+      // keeps imageUrl fresh, without touching user-created courses.
       for (const sc of SEED_COURSES) {
+        const { imageUrl, ...rest } = sc;
         await Course.updateOne(
           { courseId: sc.courseId },
-          { $set: { imageUrl: sc.imageUrl } }
+          { $set: { imageUrl }, $setOnInsert: rest },
+          { upsert: true }
         );
       }
-      console.log("Course images synced in database.");
+      console.log("Seed catalog synced in database.");
     }
   } catch (error) {
     console.error("Error seeding database:", error);

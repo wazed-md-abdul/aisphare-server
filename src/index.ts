@@ -1,4 +1,8 @@
 import "dotenv/config";
+import dns from "node:dns";
+// Windows: router IPv6 DNS breaks Node's SRV lookup for mongodb+srv URIs.
+// Force public resolvers so querySrv works.
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";

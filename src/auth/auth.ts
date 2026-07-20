@@ -2,12 +2,19 @@ import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { MongoClient } from "mongodb";
 
-// Better Auth server instance — single source of truth for sessions
-// (spec §2, §6.4). MongoDB adapter, email+password, Google social.
+
 const client = new MongoClient(
-  process.env.MONGODB_URI || "mongodb://localhost:27017/edusphere"
+  process.env.MONGODB_URI || "mongodb://localhost:27017/edusphere",
+  {
+    maxPoolSize: 10,
+    minPoolSize: 2,
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
+    maxIdleTimeMS: 60000,
+    retryWrites: true,
+  }
 );
-const db = client.db();
+const db = client.db('edusphere');
 
 let baseURL = process.env.BETTER_AUTH_URL || "http://localhost:4000";
 if (!baseURL.endsWith("/api/auth")) {
@@ -26,6 +33,7 @@ export const auth = betterAuth({
   },
   cookie: process.env.NODE_ENV === "production" ? {
     sameSite: "none",
+    secure: true,
   } : undefined,
   emailAndPassword: {
     enabled: true,
